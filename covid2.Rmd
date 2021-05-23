@@ -26,7 +26,7 @@ covid2 <- read.csv2("HIST_PAINEL_COVIDBR_22mai2021.csv")
 
 covid2$data <- as.Date(covid2$data)
 
-regiao <- read_region(year=2019)   # region
+regiao.map <- read_region(year=2018)   # region
 
 ```
 
@@ -61,35 +61,38 @@ covid4Reg <- covid2 %>%
            regiao == "Nordeste" ~ 2,
            regiao == "Sudeste" ~ 3,
            regiao == "Sul" ~ 4,
-           regiao == "Centro-Oeste" ~ 5,)) %>% 
+           regiao == "Centro-Oeste" ~ 5,),
+         code_region = as.factor(code_region)) %>% 
   replace_na(list(Letalidade = 0))
 
-regiao2 <- right_join(covid4Reg, regiao,by="code_region")  
+regiao.map$code_region <- as.factor(regiao.map$code_region)
+
+regiao2.map <- merge(covid4Reg, regiao.map, by="code_region")  
 
 # |Acrescentando as populações 
-code_region <- c(1,2,3,4,5)
+code_region <- as.factor(c(1,2,3,4,5))
 pop2010 <- c(15864454,	53081950,	80364410,	27386891,	12482963)
 pop2010 <- data_frame(code_region, pop2010)
 
-regiao2 <- right_join(regiao2, pop2010, by="code_region")  
+regiao2.map <- merge(regiao2.map, pop2010, by="code_region")  
 
-regiao2 <- regiao2 %>%
+regiao2.map <- regiao2.map %>%
   mutate(Incidencia = casosAcumulado/pop2010*100000,
          Mortalidade = obitosAcumulado/pop2010*100000)
 
 # Colocando as mesmas coordenadas da regiao na região2
 # regiao2 <- st_set_crs(st_crs(regiao))
 # regiao2 <- st_crs(st_geometry(regiao))
-st_geometry(regiao2) <- st_geometry(regiao)
+st_geometry(regiao2.map) <- st_geometry(regiao.map)
 # class(regiao2)
 
 library(wesanderson)
 pal <- wes_palette("Zissou1", 50, type = "continuous")
 
-tm_shape(regiao2) +
-  tm_polygons(col='Letalidade', title="Letalidade", breaks=c(1.5, 2.0, 2.5, 3.5, 4.0), border.col = "white", palette="Oranges", popup.vars = c("Incidencia", "Mortalidade", "Letalidade")) +
+tm_shape(regiao2.map) +
+  tm_polygons(col='Letalidade', title="Letalidade", breaks=c(1.5, 2.0, 2.5, 3.5, 4.0), border.col = "white", palette="Oranges", popup.vars = c("Incidencia", "Mortalidade", "Letalidade"), title.col = "name_region") +
    tm_bubbles("Incidencia", col="casosAcumulado", border.col = "black", border.alpha = 0.5,
-  breaks = c(5.534e+08, 5.870e+08, 8.514e+08, 1.264e+09, 1.824e+09), palette = "-RdYlGn",
+  breaks = c(5.534e+08, 5.870e+08, 8.514e+08, 1.264e+09, 1.824e+09), palette = "RdYlGn",
   # title.size = "Metro population (2010)",
    title.col = "Casos Acumulados", id = "name_region") +
   tmap_mode("view")
