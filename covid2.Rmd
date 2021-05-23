@@ -1,0 +1,144 @@
+---
+title: "Covid-19 registered in Brazil until 22 may 2021 - by wtassinari@gmail.com"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    output: github_document
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(lubridate)
+library(plotly)
+library(tidyverse)
+
+library(readr)
+library(sf)
+library(maptools)
+library(spatstat)
+library(tmap)
+
+library(geobr)
+library(crul)
+
+covid2 <- read.csv2("HIST_PAINEL_COVIDBR_22mai2021.csv")
+
+covid2$data <- as.Date(covid2$data)
+
+regiao <- read_region(year=2019)   # region
+
+```
+
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Distribuição do COVID-19 pelo Brasil por grandes regiões
+
+```{r}
+
+# covidReg <- covid %>%
+#   group_by(data,estado) %>%
+# summarize(casosAcumulados = sum(casosAcumulados, na.rm = TRUE))
+# 
+# g <- ggplot(covidReg, aes(x = data, y = casosAcumulados)) +
+#       geom_line(aes(color = estado), size = 1) +
+#   # scale_color_manual(values = c("#00AFBB", "#E7B800")) +
+#   theme_minimal()
+# 
+# ggplotly(g)
+
+
+
+covid4Reg <- covid2 %>%
+  filter(regiao != "Brasil") %>%
+  group_by(regiao) %>%
+  summarise_at(c("casosAcumulado", "obitosAcumulado"), sum, na.rm = TRUE) %>%
+  mutate(Letalidade = obitosAcumulado/casosAcumulado*100,
+         code_region = case_when(
+           regiao == "Norte" ~ 1,
+           regiao == "Nordeste" ~ 2,
+           regiao == "Sudeste" ~ 3,
+           regiao == "Sul" ~ 4,
+           regiao == "Centro-Oeste" ~ 5,)) %>% 
+  replace_na(list(Letalidade = 0))
+
+regiao2 <- right_join(covid4Reg, regiao,by="code_region")  
+
+# |Acrescentando as populações 
+code_region <- c(1,2,3,4,5)
+pop2010 <- c(15864454,	53081950,	80364410,	27386891,	12482963)
+pop2010 <- data_frame(code_region, pop2010)
+
+regiao2 <- right_join(regiao2, pop2010, by="code_region")  
+
+regiao2 <- regiao2 %>%
+  mutate(Incidencia = casosAcumulado/pop2010*100000,
+         Mortalidade = obitosAcumulado/pop2010*100000)
+
+# Colocando as mesmas coordenadas da regiao na região2
+# regiao2 <- st_set_crs(st_crs(regiao))
+# regiao2 <- st_crs(st_geometry(regiao))
+st_geometry(regiao2) <- st_geometry(regiao)
+# class(regiao2)
+
+library(wesanderson)
+pal <- wes_palette("Zissou1", 50, type = "continuous")
+
+tm_shape(regiao2) +
+  tm_polygons(col='Letalidade', title="Letalidade", breaks=c(1.5, 2.0, 2.5, 3.5, 4.0), border.col = "white", palette="Oranges", popup.vars = c("Incidencia", "Mortalidade", "Letalidade")) +
+   tm_bubbles("Incidencia", col="casosAcumulado", border.col = "black", border.alpha = 0.5,
+  breaks = c(5.534e+08, 5.870e+08, 8.514e+08, 1.264e+09, 1.824e+09), palette = "-RdYlGn",
+  # title.size = "Metro population (2010)",
+   title.col = "Casos Acumulados", id = "name_region") +
+  tmap_mode("view")
+
+
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Casos acumulados
+
+```{r}
+
+covid2Reg <- covid2 %>%
+  filter(regiao != "Brasil") %>%
+  group_by(data, regiao) %>%
+  dplyr::summarize(casosAcumulado = sum(casosAcumulado, na.rm = TRUE))
+
+
+mycolors <- c("deeppink", "chartreuse", "midnightblue", "#00AFBB", "#E7B800")
+
+g <- ggplot(covid2Reg, aes(x = data, y = casosAcumulado)) + 
+    geom_line(aes(color = regiao), size = 1) +
+  scale_color_manual(values = mycolors) +
+  theme_minimal()
+
+ggplotly(g)
+```
+
+### Letalidade (%) acumulada
+
+```{r}
+
+covid3Reg <- covid2 %>%
+  filter(regiao != "Brasil") %>%
+  group_by(data,regiao) %>%
+  summarise_at(c("casosAcumulado", "obitosAcumulado"), sum, na.rm = TRUE) %>%
+  mutate(Letalidade = obitosAcumulado/casosAcumulado*100) %>% 
+  replace_na(list(Letalidade = 0))
+
+mycolors <- c("deeppink", "chartreuse", "midnightblue", "#00AFBB", "#E7B800")
+
+g <- ggplot(covid3Reg, aes(x = data, y = Letalidade)) + 
+    geom_line(aes(color = regiao), size = 1) +
+  scale_color_manual(values = mycolors) +
+  theme_minimal()
+
+ggplotly(g)
+
+```
+
