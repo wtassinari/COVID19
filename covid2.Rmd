@@ -1,5 +1,5 @@
 ---
-title: "Covid-19 registered in Brazil until 22 may 2021 - by wtassinari@gmail.com"
+title: "Covid-19 registered in Brazil until 22 may 2021 - by Wagner Tassinari (wtassinari@gmail.com)"
 output: 
   flexdashboard::flex_dashboard:
     orientation: columns
