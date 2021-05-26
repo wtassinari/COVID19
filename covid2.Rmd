@@ -1,11 +1,21 @@
 ---
-title: "Covid-19 registered in Brazil until 22 may 2021 - by Wagner Tassinari (wtassinari@gmail.com)"
+title: "Repositório Analítico: Ensaio com os dados do COVID 19"
 output: 
   flexdashboard::flex_dashboard:
-    orientation: columns
-    vertical_layout: fill
-    output: github_document
+    storyboard: true
+    social: menu
+#    source: embed # opcao para o código aparecer
 ---
+
+<!-- --- -->
+<!-- title: "Repositório Analítico" -->
+<!-- output:  -->
+<!--   flexdashboard::flex_dashboard: -->
+<!--     orientation: columns -->
+<!--     vertical_layout: fill -->
+<!--     output: github_document -->
+<!-- # runtime: shiny -->
+<!-- --- -->
 
 ```{r setup, include=FALSE}
 library(flexdashboard)
@@ -21,6 +31,7 @@ library(tmap)
 
 library(geobr)
 library(crul)
+library(zoo)
 
 covid2 <- read.csv2("HIST_PAINEL_COVIDBR_22mai2021.csv")
 
@@ -30,11 +41,52 @@ regiao.map <- read_region(year=2018)   # region
 
 ```
 
-
-Column {data-width=650}
+Inputs {.sidebar}
 -----------------------------------------------------------------------
 
-### Distribuição do COVID-19 pelo Brasil por grandes regiões
+**Repositório Analítico**
+
+Este ensaio tem por objetivo mostrar a distribuição dos casos acumulados de COVID 19 distribuidos pelas grandes regiões do Brasil até 22 de maio de 2021.
+
+Envolvidos:
+
+- Alexandre Pinto [alexandrepintoc@gmail.com]()
+
+- José Berillo [jberilo@gmail.com]()
+
+- Wagner Tassinari [wtassinari@gmai.com]()
+
+**Indicadores epidemiológicos utilizados:**
+
+- Incidência por 1.000 habitantes
+- Mortalidade por 1.000 habitantes
+- Letalidade (%)
+
+<!-- Column {data-width=650} -->
+<!-- ----------------------------------------------------------------------- -->
+
+### Série Temporal dos casos de COVID-19 do Brasil e a média móvel durante 7 dias até 22 maio 2021
+
+
+```{r}
+startDate = "2020-02-25"
+
+# df <- filter(covid2, regiao %in% c("Brasil", "Centro-Oeste","Nordeste","Norte", "Sudeste", "Sul") & data >= startDate)
+df <- filter(covid2, regiao %in% c("Brasil") & data >= startDate)
+
+g1 <- ggplot(df, aes(x = data, y = casosNovos)) +
+    geom_col(width = .3, aes(color = "daily")) +
+    geom_line(aes(color = "Média 7 dias", y = rollmean(x = casosNovos,
+                    k = 7, align = c("right"), fill = NA) ), color="blue", size = .75) +
+theme_set(theme_bw(16))
+#   + facet_wrap (~ regiao, ncol=5)
+
+
+ggplotly(g1)
+```
+
+### Distribuição Geográfica dos casos acumulados do COVID-19 pelo Brasil por grandes regiões até 22 maio 2021
+
 
 ```{r}
 
@@ -54,8 +106,8 @@ Column {data-width=650}
 covid4Reg <- covid2 %>%
   filter(regiao != "Brasil") %>%
   group_by(regiao) %>%
-  summarise_at(c("casosAcumulado", "obitosAcumulado"), sum, na.rm = TRUE) %>%
-  mutate(Letalidade = obitosAcumulado/casosAcumulado*100,
+  summarise_at(c("casosNovos", "obitosNovos"), sum, na.rm = TRUE) %>%
+  mutate(Letalidade = obitosNovos/casosNovos*100,
          code_region = case_when(
            regiao == "Norte" ~ 1,
            regiao == "Nordeste" ~ 2,
@@ -77,8 +129,8 @@ pop2010 <- data_frame(code_region, pop2010)
 regiao2.map <- merge(regiao2.map, pop2010, by="code_region")  
 
 regiao2.map <- regiao2.map %>%
-  mutate(Incidencia = casosAcumulado/pop2010*100000,
-         Mortalidade = obitosAcumulado/pop2010*100000)
+  mutate(Incidencia = casosNovos/pop2010*1000,
+         Mortalidade = obitosNovos/pop2010*1000)
 
 # Colocando as mesmas coordenadas da regiao na região2
 # regiao2 <- st_set_crs(st_crs(regiao))
@@ -90,9 +142,9 @@ library(wesanderson)
 pal <- wes_palette("Zissou1", 50, type = "continuous")
 
 tm_shape(regiao2.map) +
-  tm_polygons(col='Letalidade', title="Letalidade", breaks=c(1.5, 2.0, 2.5, 3.5, 4.0), border.col = "white", palette="Oranges", popup.vars = c("Incidencia", "Mortalidade", "Letalidade"), title.col = "name_region") +
-   tm_bubbles("Incidencia", col="casosAcumulado", border.col = "black", border.alpha = 0.5,
-  breaks = c(5.534e+08, 5.870e+08, 8.514e+08, 1.264e+09, 1.824e+09), palette = "RdYlGn",
+  tm_polygons(col='Letalidade', title="Letalidade", breaks=c(2.0, 2.5, 3.0, 3.5), border.col = "white", palette="Oranges", popup.vars = c("Incidencia", "Mortalidade", "Letalidade"), title.col = "name_region") +
+   tm_bubbles("Incidencia", col="casosNovos", border.col = "black", border.alpha = 0.5,
+  breaks = c(3000000, 5000000, 7000000, 9000000, 13000000), palette = "RdYlGn",
   # title.size = "Metro population (2010)",
    title.col = "Casos Acumulados", id = "name_region") +
   tmap_mode("view")
@@ -100,10 +152,39 @@ tm_shape(regiao2.map) +
 
 ```
 
-Column {data-width=350}
------------------------------------------------------------------------
+<!-- ### Distribuição dos casos de COVID-19 pelo Brasil até 15 maio 2021 -->
 
-### Casos acumulados
+<!-- ```{r} -->
+
+<!-- covidBR <- covid2 %>% -->
+<!--   mutate(date=lubridate::parse_date_time(data, "ymd")) %>% -->
+<!--   filter(regiao=="Brasil") %>% -->
+<!--   select(data, casosNovos) %>% -->
+<!-- #  group_by(data, regiao) %>% -->
+<!--   mutate(seven_avg= rollmean(casosNovos, 7, -->
+<!--                              align="left", -->
+<!--                              fill=0))  -->
+
+
+<!-- g1 <- ggplot(covidBR, aes(x=data, y=casosNovos)) + -->
+<!--   geom_col(fill="pink") + -->
+<!--   geom_line(aes(y = seven_avg),  -->
+<!--             color = "blue",  -->
+<!--             size = .75)+ -->
+<!--   scale_x_date(limits = as.Date(c("2020-02-25", "2021-05-15")))+ -->
+<!--   labs(title="Brasil: COVID casos por dia", -->
+<!--        y="casos de COVID")  -->
+
+<!-- ggplotly(g1) -->
+
+<!-- ``` -->
+
+
+<!-- Column {data-width=350} -->
+<!-- ----------------------------------------------------------------------- -->
+
+### Casos acumulados de COVID 19 pelas grandes regiões do Brasil até 22 maio 2021
+
 
 ```{r}
 
@@ -123,7 +204,8 @@ g <- ggplot(covid2Reg, aes(x = data, y = casosAcumulado)) +
 ggplotly(g)
 ```
 
-### Letalidade (%) acumulada
+### Letalidade (%) acumulada dos casos acumulados de COVID 19 pelas grandes regiões do Brasil até 22 maio 2021
+
 
 ```{r}
 
@@ -143,5 +225,12 @@ g <- ggplot(covid3Reg, aes(x = data, y = Letalidade)) +
 
 ggplotly(g)
 
+```
+
+### Tabela com as estatísticas descritivas dos dados de COVID 19 pelas grandes regiões do Brasil até 22 maio 2021
+
+```{r}
+library(summarytools)
+print(dfSummary(covid2[ c(1,10:15)], graph.magnif = 0.75,  display.labels=TRUE), method = 'render')
 ```
 
